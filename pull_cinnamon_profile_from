@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# Check if the username is passed as an argument
+if [ -z "$1" ]; then
+  echo "Usage: $0 <username>"
+  exit 1
+fi
+
+# Define the main user and target user
+MAIN_USER="$1"
+TARGET_USER=$USER
+
+# Define paths for Cinnamon menu icon configuration
+MAIN_MENU_CONFIG="/home/$MAIN_USER/.config/cinnamon/spices/menu@cinnamon.org/0.json"
+TARGET_MENU_CONFIG_PATH="/home/$TARGET_USER/.config/cinnamon/spices/menu@cinnamon.org/"
+
+# Define the theme and icon directories
+USER_THEMES_PATH="/home/$MAIN_USER/.themes"
+USER_ICONS_PATH="/home/$MAIN_USER/.icons"
+TARGET_THEME_PATH="/home/$TARGET_USER/.themes"
+TARGET_ICONS_PATH="/home/$TARGET_USER/.icons"
+SYSTEM_THEME_PATH="/usr/share/themes"
+SYSTEM_ICON_PATH="/usr/share/icons"
+
+# Export and apply dconf settings 
+TMP_DCONF="/tmp/cinnamon-settings-$TARGET_USER.dconf"
+
+echo "Exporting Cinnamon settings from $MAIN_USER..."
+sudo -u "$MAIN_USER" dconf dump /org/cinnamon/ > "$TMP_DCONF"
+
+# Check if export was successful
+if [ ! -s "$TMP_DCONF" ]; then
+    echo "Failed to export settings from $MAIN_USER. Exiting."
+    exit 1
+fi
+
+# Load dconf settings into target 
+echo "Applying Cinnamon settings to $TARGET_USER..."
+dconf load /org/cinnamon/ < "$TMP_DCONF"
+
+# Remove temporary dconf file
+rm "$TMP_DCONF"
+
+# Extract current theme settings dynamically from main user dconf
+GTK_THEME=$(sudo -u "$MAIN_USER" dconf read /org/cinnamon/desktop/interface/gtk-theme | sed "s/'//g")
+ICON_THEME=$(sudo -u "$MAIN_USER" dconf read /org/cinnamon/desktop/interface/icon-theme | sed "s/'//g")
+SHELL_THEME=$(sudo -u "$MAIN_USER" dconf read /org/cinnamon/theme/name | sed "s/'//g")
+
+# Function to copy a theme or icon set with sudo, handling spaces
+copy_theme_or_icon_if_needed() {
+    TYPE="$1"
+    THEME="$2"
+    SOURCE_PATH="$3"
+    TARGET_PATH="$4"
+    
+    if [ -d "$SOURCE_PATH/$THEME" ]; then
+        echo "Copying $TYPE '$THEME' from $MAIN_USER's home to $TARGET_USER's home..."
+        sudo mkdir -p "$TARGET_PATH"
+        sudo cp -r "$SOURCE_PATH/$THEME" "$TARGET_PATH"
+        sudo chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_PATH/$THEME"
+        echo "$TYPE '$THEME' copied and ownership set."
+    else
+        echo "$TYPE '$THEME' is not in $MAIN_USER's home directory, skipping copy."
+    fi
+}
+
+# Copy the themes and icons if they are user-specific (not system-wide)
+echo "Processing themes for $TARGET_USER..."
+
+if [ ! -d "$SYSTEM_THEME_PATH/$GTK_THEME" ]; then
+    copy_theme_or_icon_if_needed "Theme" "$GTK_THEME" "$USER_THEMES_PATH" "$TARGET_THEME_PATH"
+fi
+
+if [ ! -d "$SYSTEM_THEME_PATH/$SHELL_THEME" ]; then
+    copy_theme_or_icon_if_needed "Shell Theme" "$SHELL_THEME" "$USER_THEMES_PATH" "$TARGET_THEME_PATH"
+fi
+
+# Handle start menu icon by copying the JSON config from main user to target user
+if sudo test -f "$MAIN_MENU_CONFIG"; then
+    echo "Copying start menu icon configuration..."
+    sudo mkdir -p "$TARGET_MENU_CONFIG_PATH"
+    sudo cp "$MAIN_MENU_CONFIG" "$TARGET_MENU_CONFIG_PATH"
+    sudo chown -R "$TARGET_USER:$TARGET_USER" "$TARGET_MENU_CONFIG_PATH"
+    echo "Start menu icon configuration copied."
+else
+    echo "No custom start menu icon found for $MAIN_USER."
+fi
+
+# Apply the themes and settings to the target user using dconf
+echo "Applying themes: GTK: $GTK_THEME, Icons: $ICON_THEME, Shell: $SHELL_THEME..."
+dconf write /org/cinnamon/desktop/interface/gtk-theme "'$GTK_THEME'"
+dconf write /org/cinnamon/desktop/interface/icon-theme "'$ICON_THEME'"
+dconf write /org/cinnamon/theme/name "'$SHELL_THEME'"
+
+echo "Cinnamon configuration, themes, and start menu icon copied from $MAIN_USER and applied to $TARGET_USER"
+
