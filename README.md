@@ -19,18 +19,18 @@ This script allows you to easily copy and transfer Cinnamon desktop configuratio
 2. git clone https://github.com/mranderson-744/cinnamon-profile-transfer-tool.git && cd cinnamon-profile-transfer-tool
 3. Make the script executable:
    ```bash
-   chmod +x pull_cinnamon_profile_from.sh
+   chmod +x pull_cinnamon_profile_from
    ```
 4. Run the script, specifying the username of the source user:
    ```bash
-   ./pull_cinnamon_profile_from.sh <username>
+   ./pull_cinnamon_profile_from <username>
    ```
 5. Enjoy your configs applied!
 
 ## Example
 To copy the Cinnamon profile from user `mainuser` to the currently logged-in user `targetuser`, run:
 ```bash
-./pull_cinnamon_profile_from.sh mainuser 
+./pull_cinnamon_profile_from mainuser 
 ```
 
 ## Contributing
